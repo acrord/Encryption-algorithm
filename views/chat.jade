@@ -1,0 +1,485 @@
+doctype html
+html
+  head
+    title Chat
+    script(src='https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js')
+    script(src='http://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js')
+    link#bootstrap-css(href='http://maxcdn.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css', rel='stylesheet')
+    script(src='//maxcdn.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js')
+    link(rel='stylesheet', href='https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css', integrity='sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO', crossorigin='anonymous')
+    link(rel='stylesheet', href='https://use.fontawesome.com/releases/v5.5.0/css/all.css', integrity='sha384-B4dIYHKNBt8Bc12p+WXckhzcICo0wtJAoU8YZTY5qE0Id1GSseTk6S+L3BlXeVIU', crossorigin='anonymous')
+    link(rel='stylesheet', type='text/css', href='https://cdnjs.cloudflare.com/ajax/libs/malihu-custom-scrollbar-plugin/3.1.5/jquery.mCustomScrollbar.min.css')
+    link(rel='stylesheet', type='text/css', href='stylesheets/chat.css')
+    script(type='text/javascript', src='https://cdnjs.cloudflare.com/ajax/libs/malihu-custom-scrollbar-plugin/3.1.5/jquery.mCustomScrollbar.min.js')
+    script(src='https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.1/socket.io.js')
+    script(src='https://cdnjs.cloudflare.com/ajax/libs/Base64/1.0.2/base64.min.js ')
+    script(src='javascript/aes.js')
+    script(src='javascript/sha512.js')
+    script(src='javascript/mode-cfb-min.js')
+    script(src='https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/rollups/pbkdf2.js')
+    script(src="https://peterolson.github.io/BigInteger.js/BigInteger.min.js")
+  body
+    .container-fluid.h-100
+      .row.justify-content-center.h-100
+        .col-md-4.col-xl-3.chat
+          .card.mb-sm-3.mb-md-0.contacts_card
+            .card-header
+              .input-group
+                input.form-control.search(type='text', placeholder='Search...', name='')
+            .card-body.contacts_body
+              ui.contacts
+               - for(var i=0; i <userList.length; i++)
+                 li(value=`${userList[i]}`)
+                   .d-flex.bd-highlight
+                     .img_cont
+                       img.rounded-circle.user_img(src='stylesheets/account.png')
+                       span.online_icon.offline
+                     .user_info
+                       span.ID #{userList[i]}
+                      
+            .card-footer
+        .col-md-8.col-xl-6.chat
+          input(type='radio', name='crypt', value='평문', checked='checked')
+          |  평문
+          input(type='radio', name='crypt', value='암호화')
+          |  암호화        
+          .card
+            .card-header.msg_head
+              .d-flex.bd-highlight.chatTarget
+                .img_cont
+                .user_info
+              span#action_menu_btn
+                i.fas.fa-ellipsis-v
+              .action_menu
+                ul
+                  li.exit
+                    i.fas.fa-window-close
+                    |  채팅방 나가기
+            .card-body.msg_card_body.decrypted
+            .card-body.msg_card_body.crypted(style='display:none;')
+            .card-footer
+              .input-group
+                .input-group-append
+                  span.input-group-text.attach_btn()
+                    i.fas.fa-paperclip
+                    input#file-input(type='file')
+                textarea.form-control.type_msg(disabled='', name='', placeholder='Type your message...')
+                .input-group-append
+                  span.input-group-text.send_btn
+                    i.fas.fa-location-arrow
+  script(type='text/javascript').
+    const userID = "#{userID}"
+    const socket = io.connect('http://127.0.0.1:3000');
+    let key, iv;
+    const secret = Math.floor(Math.random()*100);
+    let P = 23 
+    let G = 5
+    let Y, otherPub, secretKey;
+    $("span.input-group-text.attach_btn").click(function(e){
+      if(!$('textarea')[0].disabled)
+        $('#file-input')[0].click();
+    })
+    $(document).ready(function(){
+      $('#action_menu_btn').click(function(){
+        $('.action_menu').toggle();
+      });
+
+      $(window).bind("beforeunload", function() { 
+        socket.disconnect(); 
+      });
+
+      let roomNum;
+      socket.on('connected', function(data){ 
+        if(data){
+          $("li").each((index, item)=>{
+            for(var i =0; i<data.length;i++){
+              if($(item).attr("value") == data[i]){
+                $(item).find("span.online_icon").removeClass("offline")
+              }
+            }
+          })
+        }
+        socket.emit("notify", {userID:userID})
+      }); 
+
+      socket.on('notify', (data) => {
+        $("li").each((index, item)=>{
+          if($(item).attr("value") == data)
+            $(item).find("span.online_icon").removeClass("offline")
+        })
+      })
+
+      socket.on('offline', function(data){
+        alert(`${data}가 오프라인 입니다.`)
+      })
+
+      socket.on("fail", function(data){
+        alert(`${data}가 통신 중 입니다.`)
+      })
+      socket.on("upFail", function(data){
+        alert(`지원하지 않는 확장자입니다.`)
+      })
+
+      socket.on('dis_join', function(data){
+        if(data == $('.active').attr('value')){
+          $(".active").removeClass("active")
+          $(".chatTarget").html(``);
+          $(".msg_card_body").html(``);
+          $('textarea')[0].value="";
+          $('textarea').attr('disabled', true);
+        }
+        socket.emit("clearRoom", {"room":roomNum})
+      })
+      
+      socket.on('disconnect', function(data){
+        let target;
+        $("li").each((index, item)=>{
+          if($(item).attr("value") == data)
+            $(item).find("span.online_icon").addClass("offline")
+        })
+        if(data == $(".active").attr('value')){
+          $(".active").removeClass("active")
+          $(".chatTarget").html(``);
+          $(".msg_card_body").html(``);
+          $('textarea')[0].value="";
+          $('textarea').attr('disabled', true);
+          socket.emit("clearRoom", {"room":roomNum})
+        }
+      })
+
+      $(".exit").on("click", (e)=>{
+        $(".active").removeClass("active")
+        $(".chatTarget").html(``);
+        $(".msg_card_body").html(``);
+        $('.action_menu').toggle();
+        $('textarea')[0].value="";
+        $('textarea').attr('disabled', true);
+        socket.emit("dis_join", {"room":roomNum, "userID":userID})
+      });
+      socket.on("follow", function(data){
+        const {userID, targetID, room} = data;
+        roomNum = room;
+        getChatList(targetID)
+      })
+      
+
+      socket.on("join", function(data){
+        const {client1, client2 , room} = data;
+        let targetID  = client1 == userID ? client2 : client1
+        key = CryptoJS.enc.Hex.parse(data.key);
+        iv = CryptoJS.enc.Hex.parse(data.iv);
+        
+        socket.emit("follow", {targetID: targetID, userID: userID, room: room, iv:iv.toString(), key:key.toString()});
+
+        roomNum = room
+        getChatList(targetID)
+      })
+      socket.on("DH", function(data){
+        otherPub=data.Y
+        P = data.P
+        G = data.G
+        Y = bigInt(G).modPow(secret, P);
+        secretKey = bigInt(otherPub).modPow(secret, P);
+        socket.emit("exchange", {Y:Y, userID:userID, targetID: data.userID})
+      })
+      socket.on("exchange", function(data){
+        otherPub = data.Y;
+        secretKey = bigInt(otherPub).modPow(secret, P);
+        var salt = CryptoJS.lib.WordArray.random(128/8);
+        const pass = CreateRandomCode();
+        var keySize = 512;
+        var ivSize = 128;
+        var iterations = 100;
+
+        key = CryptoJS.PBKDF2(pass, salt, {
+          hasher:CryptoJS.algo.SHA512,
+          keySize: keySize/32,
+          iterations: iterations
+        });
+
+        iv = CryptoJS.lib.WordArray.random(128/8);
+        const sendData = {targetID:data.userID, userID:userID, key:key.toString(), iv:iv.toString()}
+        socket.emit("join", sendData)
+      })
+      $("li").on("click", (e)=>{ //대화요청
+        if(!$(e.currentTarget).find("span.online_icon")[0]) return false;
+        
+        Y = bigInt(G).modPow(secret, P);
+        const data = {Y:Y, P:P, G:G, userID:userID, targetID:$(e.currentTarget).find("span.ID").text()}
+        socket.emit("DH",data)
+      })
+
+      const inputMessage = () => {
+        let msg = $("textarea").val()
+        alert(msg);
+        const encryptText = encrypt_text(key, iv, msg);
+        alert(encryptText);
+        const targetID = $(".active").attr('value')
+        socket.emit("message", {'msg':encryptText, 'userID':userID, 'targetID':targetID, 'room':roomNum });
+        $("textarea")[0].value = ""
+      };
+
+      $('.send_btn').on("click", () => {
+        if($("textarea").val()!="" && $("textarea")[0].disabled == false)
+          inputMessage();
+      })
+      
+      $('.form-control.type_msg').on("keyup", () => {
+        if(event.keyCode == 13){
+          if($("textarea").val()!="")
+            inputMessage();
+        }
+      })
+      socket.on("chatReceive", (data)=>{
+          if(data){
+            const messageList = data
+            let msg = ""
+            let msg2 = ""
+
+            let cryptMSG, fID, tID, time, plainMSG;
+            for(let i =0; i<messageList.length; i++){
+              cryptMSG = messageList[i].msg;
+              fID = messageList[i].fromID;
+              tID = messageList[i].toID;
+              time = messageList[i].Time;
+              plainMSG = decrypt_text(key, iv, cryptMSG);
+              let sp = plainMSG.split("data://");
+              if(plainMSG !== sp[0]){
+                plainMSG = `<button class="download" onclick="downloadFile(this);">${sp[1].split("files/")[1]}</button>`
+                cryptMSG = `<button class="download" onclick="downloadFile(this)">${sp[1].split("files/")[1]}.enc</button>`
+              } 
+              if(userID == tID){//from
+                msg += `<div class="d-flex justify-content-start mb-4">
+                  <div class="img_cont_msg">
+                    <img src="stylesheets/account.png" class="rounded-circle user_img_msg">
+                  </div>
+                  <div class="msg_cotainer">
+                    ${plainMSG}
+                    <span class="msg_time">${time}</span>
+                  </div>
+                </div>`
+                msg2 += `<div class="d-flex justify-content-start mb-4">
+                  <div class="img_cont_msg">
+                    <img src="stylesheets/account.png" class="rounded-circle user_img_msg">
+                  </div>
+                  <div class="msg_cotainer">
+                    ${cryptMSG}
+                    <span class="msg_time">${time}</span>
+                  </div>
+                </div>`
+              }
+              else{
+                msg += `<div class="d-flex justify-content-end mb-4">
+                  <div class="msg_cotainer_send">
+                    ${plainMSG}
+                    <span class="msg_time_send">${time}</span>
+                  </div>
+                  <div class="img_cont_msg">
+                    <img src="stylesheets/account.png" class="rounded-circle user_img_msg">
+                  </div>
+                </div>`
+                msg2 += `<div class="d-flex justify-content-end mb-4">
+                  <div class="msg_cotainer_send">
+                    ${cryptMSG}
+                    <span class="msg_time_send">${time}</span>
+                  </div>
+                  <div class="img_cont_msg">
+                    <img src="stylesheets/account.png" class="rounded-circle user_img_msg">
+                  </div>
+                </div>`
+              }
+            }
+            $(".msg_card_body.decrypted").html(msg);
+            $(".msg_card_body.crypted").html(msg2);
+            document.querySelector(".msg_card_body.decrypted").scrollTop = document.querySelector(".msg_card_body.decrypted").scrollHeight
+            document.querySelector(".msg_card_body.crypted").scrollTop = document.querySelector(".msg_card_body.crypted").scrollHeight
+          }
+        })
+      socket.on('message', function(msg){
+        let encrypted  = msg.message;
+        let message = decrypt_text(key, iv, msg.message);
+        let sp = message.split("data://");
+        if(message !== sp[0]){
+          message = `<button class="download" onclick="downloadFile(this)">${sp[1].split("files/")[1]}</button>`
+          encrypted = `<button class="download" onclick="downloadFile(this)">${sp[1].split("files/")[1]}.enc</button>`
+        }
+        let test ="test"
+        if(msg.ID == userID){
+          $(".msg_card_body.decrypted").append(
+          `<div class="d-flex justify-content-end mb-4">
+            <div class="msg_cotainer_send">
+              ${message}
+              <span class="msg_time_send">${msg.date}</span>
+            </div>
+            <div class="img_cont_msg">
+              <img src="stylesheets/account.png" class="rounded-circle user_img_msg">
+            </div>
+          </div>`)
+          $(".msg_card_body.crypted").append(
+          `<div class="d-flex justify-content-end mb-4">
+            <div class="msg_cotainer_send">
+              ${encrypted}
+              <span class="msg_time_send">${msg.date}</span>
+            </div>
+            <div class="img_cont_msg">
+              <img src="stylesheets/account.png" class="rounded-circle user_img_msg">
+            </div>
+          </div>`)
+        }
+        else{
+          $(".msg_card_body.decrypted").append(
+          `<div class="d-flex justify-content-start mb-4">
+            <div class="img_cont_msg">
+              <img src="stylesheets/account.png" class="rounded-circle user_img_msg">
+            </div>
+            <div class="msg_cotainer">
+              ${message}
+              <span class="msg_time">${msg.date}</span>
+            </div>
+          </div>`)
+          $(".msg_card_body.crypted").append(
+          `<div class="d-flex justify-content-start mb-4">
+            <div class="img_cont_msg">
+              <img src="stylesheets/account.png" class="rounded-circle user_img_msg">
+            </div>
+            <div class="msg_cotainer">
+              ${encrypted}
+              <span class="msg_time">${msg.date}</span>
+            </div>
+          </div>`)
+        }
+        document.querySelector(".msg_card_body.decrypted").scrollTop = document.querySelector(".msg_card_body.decrypted").scrollHeight
+        document.querySelector(".msg_card_body.crypted").scrollTop = document.querySelector(".msg_card_body.crypted").scrollHeight
+      }); 
+
+      
+
+      $('#file-input').on("change", function(e){
+        e.stopPropagation();
+        e.preventDefault(); 
+        const file = e.target.files[0];
+        var reader = new FileReader
+        reader.onload = function() {
+          var encrypted = file_enc(key,iv,reader.result)
+          alert(encrypted)
+          const name = file.name;
+          const type = file.type;
+          const targetID = $('.active').attr("value")
+          socket.emit("uploadFile", {"name":name, "file":encrypted, "type":type ,'room':roomNum, 'targetID':targetID, 'userID':userID})
+        }
+        reader.readAsDataURL(file)
+        
+      })
+
+      function getChatList(targetID){
+        let target;
+        console.log(targetID)
+        $(".active").removeClass("active")
+        $("li").each((index, item)=>{
+          if($(item).attr("value") == targetID)
+            target = $(item)
+        })
+        target.addClass("active")
+        let classList = "";
+        target.find("span.online_icon")[0].classList.forEach(elem => {
+          classList += `${elem}`
+        })
+        $(".chatTarget").html(`
+          <div class="img_cont">
+            <img src="stylesheets/account.png" class="rounded-circle user_img">
+            <span class="${classList}"></span>
+          </div>
+          <div class="user_info">
+            <span class= "ID">Chat with ${targetID}</span>
+          </div>
+        `);
+        $(".msg_card_body").html(``)
+        $('textarea').attr('disabled', false);
+
+        socket.emit("getChatList", {ID : userID, targetID: targetID})
+      }
+    });
+
+    socket.on("download", (data) => {
+      const decrypt = file_dec(key,iv, data.file)
+      const url = `data:${data.type};base64,${decrypt}`
+      let a = document.createElement('a')
+      a.href = url
+      a.download = data.fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    })
+    function downloadFile(e){
+      let path = `${e.textContent}`
+      socket.emit("download", {fileName: path})
+    };
+
+    $(".form-control.search").on("keyup",function(){
+      const target = $(".contacts")[0].children;
+      const search = $(".form-control.search").val().toLowerCase();
+      if(search == '') {
+        for(var i = 0; i < target.length; i++){
+          $(target[i]).show();
+        }
+      }
+      else{
+        for(var i = 0; i < target.length; i++){
+          let $element = $(target[i]).find("span.ID");
+          $element.text().toLowerCase().indexOf(search) === -1 ? $(target[i]).hide() : $(target[i]).show();
+        }
+      }
+    })
+    $('input[type="radio"]').on("click",function(e){
+      if(e.currentTarget.value=="평문"){
+        $(".card-body.msg_card_body.decrypted")[0].style.display="block";
+        $(".card-body.msg_card_body.crypted")[0].style.display="none";
+      }else{
+        $(".card-body.msg_card_body.decrypted")[0].style.display="none";
+        $(".card-body.msg_card_body.crypted")[0].style.display="block";
+      }
+    })
+    function file_enc(key, iv, file){
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(file), key, {
+        iv : iv,
+        mode: CryptoJS.mode.CFB
+      });
+      return encrypted.toString()
+    }
+    function file_dec(key, iv, file){
+      const decrypted = CryptoJS.AES.decrypt(file, key, {
+        iv : iv,
+        mode: CryptoJS.mode.CFB
+      });
+      return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8))
+    }
+    function encrypt_text(key, iv, plaintext){
+      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(plaintext), key, {
+        iv : iv,
+        mode: CryptoJS.mode.CFB
+      });
+      return encrypted.toString()
+
+    }
+    function decrypt_text(key, iv, ciphertext){
+      const decrypted = CryptoJS.AES.decrypt(ciphertext, key, {
+        iv : iv,
+        mode: CryptoJS.mode.CFB
+      });
+      return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8))
+    }
+    const CreateRandomCode = () => {
+      let classCode = "";
+
+      for(let i = 0; i<6; i++)
+      {
+          let ran=Math.floor(Math.random() * 36);
+          if(ran<10)
+              ran = ran + 48;
+          else
+              ran = ran + 87;
+          classCode += String.fromCharCode(ran);
+      }
+      return classCode
+    }
+

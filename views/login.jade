@@ -1,0 +1,121 @@
+html
+  head
+    link(href='stylesheets/login.css', type='text/css', rel='stylesheet')
+    script(src='https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js')
+    script(src='http://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.10.0/js/md5.min.js')
+  body
+    .wrapper.fadeInDown
+      #formContent
+        h2.login.active  Sign In 
+        h2.sign.inactive.underlineHover Sign Up 
+        .fadeIn.first
+          img#icon(src='stylesheets/account.png', alt='User Icon')
+        form.loginForm(action='/main', method='POST')
+          input#ID.fadeIn.second(type='text', name='ID', placeholder='ID')
+          input#password.fadeIn.third(type='password', name='login', placeholder='password')
+          input.login-btn(type='button', value='Log In')
+          input.sign-btn(type='button', value='Register', style='display:none')
+
+    script.
+      const n ="#{n}"
+      const key= "#{publicKey}"
+      function encrypt(pk, plaintext){
+        const {key, n} = pk
+        let cipher = []
+        for(char of plaintext){
+          cipher.push( (char.charCodeAt(0) ** key) % n)
+        }
+        return cipher
+      }
+      const login = document.querySelector(".login")
+      const sign = document.querySelector(".sign")
+      const loginbtn = document.querySelector(".login-btn")
+      const signbtn = document.querySelector(".sign-btn")
+      document.querySelector(".sign").addEventListener("click", function(e){
+        sign.classList.add("active")
+        sign.classList.remove("inactive")
+        sign.classList.remove("underlineHover")
+        login.classList.add("inactive")
+        login.classList.add("underlineHover")
+        login.classList.remove("active")
+        loginbtn.style.display="none"
+        signbtn.style.display=""
+      })
+      document.querySelector(".login").addEventListener("click", function(e){
+        sign.classList.remove("active")
+        sign.classList.add("inactive")
+        sign.classList.add("underlineHover")
+        login.classList.remove("inactive")
+        login.classList.remove("underlineHover")
+        login.classList.add("active")
+        loginbtn.style.display=""
+        signbtn.style.display="none"
+      })
+      document.querySelector(".sign-btn").addEventListener("click", function(e){
+        const ID = document.querySelector("#ID").value;
+        const PW = document.querySelector("#password").value;
+        alert("패스워드: " + PW);
+        const hash = md5(PW);
+        alert("패스워드(hashed): "+ hash);
+        alert("서버 공개키: "+ key);
+        const encrypted = encrypt({n:n, key: key}, hash);
+        alert("공개키로 암호화: "+ encrypted);
+        if(ID.length<5) {
+          alert("아이디가 너무 짧습니다.\n ID 5자리 이상")
+          return;
+        }
+        if(PW.length <5){
+          alert("비밀번호가 너무 짧습니다. \n password 5자리 이상")
+          return;
+        }
+        const request = $.ajax({
+          url: "http://127.0.0.1:5000/createUser",
+          type: "POST",
+          data: {ID : ID, encrypted: encrypted},
+          dataType: "json"
+        });
+        request.done(function(data) {
+          if(data.success){
+            alert("회원가입 성공");
+            sign.classList.remove("active")
+            sign.classList.add("inactive")
+            sign.classList.add("underlineHover")
+            login.classList.remove("inactive")
+            login.classList.remove("underlineHover")
+            login.classList.add("active")
+            loginbtn.style.display=""
+            signbtn.style.display="none"
+          }
+          else if(!data.success && data.duplicate){
+            alert("중복된 아이디 입니다.");
+          }
+        });
+      })
+      function loginForm(){
+        const ID = document.querySelector("#ID").value;
+        const PW = document.querySelector("#password").value;
+        const hash = md5(PW);
+        const encrypted = encrypt({n:n, key: key}, hash);
+        const request = $.ajax({
+          url: "http://127.0.0.1:5000/login",
+          type: "POST",
+          data: {ID :ID, encrypted :encrypted},
+          dataType: "json"
+        });
+        request.done(function(data) {
+          if(data.success == true){
+            document.querySelector(".loginForm").submit()
+          }
+          else{
+            alert("아이디와 비밀번호를 확인해주세요.")
+          }
+        })
+      }
+      document.querySelector(".login-btn").addEventListener("click", function(){
+        loginForm()
+      })
+      document.querySelector("#password").addEventListener("onkeyup", function(){
+        if(event.keyCode == 13){
+          loginForm()
+        }
+      })
