@@ -13,8 +13,8 @@ html
     script(type='text/javascript', src='https://cdnjs.cloudflare.com/ajax/libs/malihu-custom-scrollbar-plugin/3.1.5/jquery.mCustomScrollbar.min.js')
     script(src='https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.1/socket.io.js')
     script(src='https://cdnjs.cloudflare.com/ajax/libs/Base64/1.0.2/base64.min.js ')
-    script(src='javascript/aes.js')
     script(src='javascript/sha512.js')
+    script(src='javascript/aes.js')
     script(src='javascript/mode-cfb-min.js')
     script(src='https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/rollups/pbkdf2.js')
     script(src="https://peterolson.github.io/BigInteger.js/BigInteger.min.js")
@@ -71,10 +71,6 @@ html
     const userID = "#{userID}"
     const socket = io.connect('http://127.0.0.1:3000');
     let key, iv;
-    const secret = Math.floor(Math.random()*100);
-    let P = 23 
-    let G = 5
-    let Y, otherPub, secretKey;
     $("span.input-group-text.attach_btn").click(function(e){
       if(!$('textarea')[0].disabled)
         $('#file-input')[0].click();
@@ -156,20 +152,14 @@ html
         $('textarea').attr('disabled', true);
         socket.emit("dis_join", {"room":roomNum, "userID":userID})
       });
+
       socket.on("follow", function(data){
         const {userID, targetID, room} = data;
         roomNum = room;
-
-        //(KEY 교환 5번 완료) 
-        //이전의 채팅 목록을 가져옴   
-        //최하단 부 구현됨
-        
-        //
         getChatList(targetID)
       })
       
- 
-      //(KEY 교환 4번) 대화 상대방 KEY와 IV 받음
+
       socket.on("join", function(data){
         const {client1, client2 , room} = data;
         let targetID  = client1 == userID ? client2 : client1
@@ -181,47 +171,29 @@ html
         roomNum = room
         getChatList(targetID)
       })
-      socket.on("DH", function(data){
-        otherPub=data.Y
-        P = data.P
-        G = data.G
-        Y = bigInt(G).modPow(secret, P);
-        secretKey = bigInt(otherPub).modPow(secret, P);
-        socket.emit("exchange", {Y:Y, userID:userID, targetID: data.userID})
-      })
       socket.on("exchange", function(data){
-        //DH key 현재 사용 x
-        otherPub = data.Y;
-        secretKey = bigInt(otherPub).modPow(secret, P);
-
-        //대화 요청자
-        // AES CFB 키 생성 시작 (key 교환 1번)  서버 socket/index.js 에서 받음 
         var salt = CryptoJS.lib.WordArray.random(128/8);
         const pass = CreateRandomCode();
-        var keySize = 512; //512bit 길이
-        var ivSize = 128;  //initial vector 길이
-        var iterations = 100;  //hash 몇번 할건지 
+        var keySize = 256;
+        var ivSize = 128;
+        var iterations = 100;
 
-        //KEY
         key = CryptoJS.PBKDF2(pass, salt, {
           hasher:CryptoJS.algo.SHA512,
           keySize: keySize/32,
           iterations: iterations
         });
 
-        //IV
         iv = CryptoJS.lib.WordArray.random(128/8);
         const sendData = {targetID:data.userID, userID:userID, key:key.toString(), iv:iv.toString()}
         socket.emit("join", sendData)
       })
 
-      //사용자 선택 시   ->   AES CFB 키 생성 시작     주석으로
-      $("li").on("click", (e)=>{ //대화요청
+      $("li").on("click", (e)=>{
         if(!$(e.currentTarget).find("span.online_icon")[0]) return false;
         
-        Y = bigInt(G).modPow(secret, P);
-        const data = {Y:Y, P:P, G:G, userID:userID, targetID:$(e.currentTarget).find("span.ID").text()}
-        socket.emit("DH",data)
+        const data = {userID:userID, targetID:$(e.currentTarget).find("span.ID").text()}
+        socket.emit("exchange",data)
       })
 
       const inputMessage = () => {
@@ -374,11 +346,7 @@ html
         e.preventDefault(); 
         const file = e.target.files[0];
         var reader = new FileReader
-
-
         reader.onload = function() {
-          //실행 2번 
-          //string 암호화
           var encrypted = file_enc(key,iv,reader.result)
           alert(encrypted)
           const name = file.name;
@@ -386,7 +354,6 @@ html
           const targetID = $('.active').attr("value")
           socket.emit("uploadFile", {"name":name, "file":encrypted, "type":type ,'room':roomNum, 'targetID':targetID, 'userID':userID})
         }
-        //file type(byte) -> URL base64 encoding 문자(string)로 바꾼다.  (실행 1번) -> 실행 2번으로 이동   (callback 함수)  
         reader.readAsDataURL(file)
         
       })
@@ -416,8 +383,6 @@ html
         $(".msg_card_body").html(``)
         $('textarea').attr('disabled', false);
 
-
-        //기존의 채팅 내역을 가져옴 
         socket.emit("getChatList", {ID : userID, targetID: targetID})
       }
     });
