@@ -12,7 +12,8 @@ var con = mysql.createPool({// sql 접근 권한이 없다는 에러(if (err) th
   database: "security"
 });
 
-/* GET home page. */
+
+//첫 로그인 화면
 router.get('/', function(req, res, next) {
   res.render('login', { publicKey: rsa.PublicKEY, n: rsa.n });
 });
@@ -44,12 +45,6 @@ router.post('/createUser',(req, res) => {
     }
     con.release();
   });   
-})
-router.get("/download/files/:fileName", (req,res)=>{
-  const {fileName} = req.params
-  var filePath = `files/${fileName}`;
-  var stat = fs.readFileSync(filePath);
-  res.send(JSON.stringify(stat))
 })
 router.post('/login',(req, res) => {
   const {ID} = req.body;
@@ -98,5 +93,11 @@ router.post('/main',(req, res) => {
     }
     con.release();
   });   
+})
+router.get("/download/files/:fileName", (req,res)=>{
+  const {fileName} = req.params
+  var filePath = `files/${fileName}`;
+  var stat = fs.readFileSync(filePath);
+  res.send(JSON.stringify(stat))
 })
 module.exports = router;
