@@ -19,8 +19,8 @@ html
     script.
       const n ="#{n}"
       const key= "#{publicKey}"
-      function encrypt(pk, plaintext){
-        const {key, n} = pk
+      function encrypt(pk, plaintext){  //plain은 MD5에서 해쉬된 값
+        const {key, n} = pk  //서버에서 보낸 pub key와 n 값
         let cipher = []
         for(char of plaintext){
           cipher.push( (char.charCodeAt(0) ** key) % n)
@@ -55,10 +55,15 @@ html
         const ID = document.querySelector("#ID").value;
         const PW = document.querySelector("#password").value;
         alert("패스워드: " + PW);
+
+        //md5 해쉬 적용
         const hash = md5(PW);
         alert("패스워드(hashed): "+ hash);
         alert("서버 공개키: "+ key);
+
+        //rsa 공개키로 암호화 22번 line애 정의
         const encrypted = encrypt({n:n, key: key}, hash);
+
         alert("공개키로 암호화: "+ encrypted);
         if(ID.length<5) {
           alert("아이디가 너무 짧습니다.\n ID 5자리 이상")
