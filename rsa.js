@@ -1,8 +1,8 @@
 // p = 311
 // q = 503
 var bigInt = require("big-integer");
-var p = 29
-var q = 23
+var p = 311
+var q = 503
 var n = p*q
 var totient = (p-1) * (q-1)
 var PublicKEY = get_public_key(totient)
@@ -17,9 +17,6 @@ function gcd(a, b){
     }
    return a
 }
-// 3
-// 411
-// 667
 function decrypt(pk, ciphertext){
     const{key, n} = pk 
     let plain = []

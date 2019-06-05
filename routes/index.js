@@ -12,7 +12,8 @@ var con = mysql.createPool({// sql 접근 권한이 없다는 에러(if (err) th
   database: "security"
 });
 
-
+console.log("publickey :", rsa.PublicKEY)
+console.log("privateKEY :", rsa.privateKEY)
 //첫 로그인 화면
 router.get('/', function(req, res, next) {
   res.render('login', { publicKey: rsa.PublicKEY, n: rsa.n });

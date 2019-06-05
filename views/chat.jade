@@ -165,16 +165,27 @@ html
         let targetID  = client1 == userID ? client2 : client1
         key = CryptoJS.enc.Hex.parse(data.key);
         iv = CryptoJS.enc.Hex.parse(data.iv);
-        
-        socket.emit("follow", {targetID: targetID, userID: userID, room: room, iv:iv.toString(), key:key.toString()});
+        alert(`key수신: ${key}`)
+        alert(`iv수신: ${iv}`)
+        socket.emit("follow", {
+          targetID: targetID, 
+          userID: userID, 
+          room: room, 
+          iv:iv.toString(), 
+          key:key.toString()
+        });
 
         roomNum = room
         getChatList(targetID)
       })
-      socket.on("exchange", function(data){
+
+      $("li").on("click", (e)=>{
+        if(!$(e.currentTarget).find("span.online_icon")[0]) return false;
         var salt = CryptoJS.lib.WordArray.random(128/8);
         const pass = CreateRandomCode();
-        var keySize = 256;
+        alert(`salt: ${salt}`);
+        alert(`password: ${pass}`);
+        var keySize = 512;
         var ivSize = 128;
         var iterations = 100;
 
@@ -184,16 +195,16 @@ html
           iterations: iterations
         });
 
+        alert(`key: ${key}`)
         iv = CryptoJS.lib.WordArray.random(128/8);
-        const sendData = {targetID:data.userID, userID:userID, key:key.toString(), iv:iv.toString()}
+        alert(`iv: ${iv}`)
+        const sendData = {
+          userID:userID, 
+          targetID:$(e.currentTarget).find("span.ID").text(), 
+          key:key.toString(), 
+          iv:iv.toString()
+        };
         socket.emit("join", sendData)
-      })
-
-      $("li").on("click", (e)=>{
-        if(!$(e.currentTarget).find("span.online_icon")[0]) return false;
-        
-        const data = {userID:userID, targetID:$(e.currentTarget).find("span.ID").text()}
-        socket.emit("exchange",data)
       })
 
       const inputMessage = () => {
@@ -202,7 +213,12 @@ html
         const encryptText = encrypt_text(key, iv, msg);
         alert(encryptText);
         const targetID = $(".active").attr('value')
-        socket.emit("message", {'msg':encryptText, 'userID':userID, 'targetID':targetID, 'room':roomNum });
+        socket.emit("message", {
+          'msg':encryptText, 
+          'userID':userID, 
+          'targetID':targetID, 
+          'room':roomNum 
+        });
         $("textarea")[0].value = ""
       };
 
@@ -352,15 +368,20 @@ html
           const name = file.name;
           const type = file.type;
           const targetID = $('.active').attr("value")
-          socket.emit("uploadFile", {"name":name, "file":encrypted, "type":type ,'room':roomNum, 'targetID':targetID, 'userID':userID})
+          socket.emit("uploadFile", {
+            "name":name, 
+            "file":encrypted, 
+            "type":type ,
+            'room':roomNum, 
+            'targetID':targetID, 
+            'userID':userID
+          })
         }
         reader.readAsDataURL(file)
-        
       })
 
       function getChatList(targetID){
         let target;
-        console.log(targetID)
         $(".active").removeClass("active")
         $("li").each((index, item)=>{
           if($(item).attr("value") == targetID)
@@ -382,7 +403,6 @@ html
         `);
         $(".msg_card_body").html(``)
         $('textarea').attr('disabled', false);
-
         socket.emit("getChatList", {ID : userID, targetID: targetID})
       }
     });
@@ -457,7 +477,6 @@ html
     }
     const CreateRandomCode = () => {
       let classCode = "";
-
       for(let i = 0; i<6; i++)
       {
           let ran=Math.floor(Math.random() * 36);

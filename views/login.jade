@@ -19,8 +19,8 @@ html
     script.
       const n ="#{n}"
       const key= "#{publicKey}"
-      function encrypt(pk, plaintext){  //plain은 MD5에서 해쉬된 값
-        const {key, n} = pk  //서버에서 보낸 pub key와 n 값
+      function encrypt(pk, plaintext){
+        const {key, n} = pk 
         let cipher = []
         for(char of plaintext){
           cipher.push( (char.charCodeAt(0) ** key) % n)

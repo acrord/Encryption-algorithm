@@ -88,13 +88,6 @@ io.on('connect', (socket) => {
         }
         io.of('/').emit("notify", userID)
     })
-    socket.on("exchange", (data) => {
-        for( sid in users){
-            if(users[sid] == data.targetID){
-                socket.to(sid).emit("exchange", data)
-            }
-        }
-    })
     socket.on("follow", (data) => {
         let {targetID, userID, room, iv, key} = data
         socket.join(room)
@@ -118,7 +111,13 @@ io.on('connect', (socket) => {
                         busy[sid] = true
                         busy[socket.id] = true
                         socket.join(room)
-                        io.of('/').to(sid).emit("join", {"client1":userID, "client2":targetID, "room":room, "key": key, "iv": iv})
+                        io.of('/').to(sid).emit("join", {
+                            "client1":userID, 
+                            "client2":targetID, 
+                            "room":room, 
+                            "key": key, 
+                            "iv": iv
+                        })
                         return;
                     }
                 } else {
